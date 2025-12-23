@@ -4,6 +4,29 @@
 
 本项目为 Kaggle 竞赛 "Plant Seedlings Classification" 的解决方案，旨在根据植物幼苗的图像对其进行分类。数据集包含 12 类不同植物幼苗的高分辨率图像，挑战在于处理复杂背景、光照变化及类间相似性。具体题目可见 [Problem 页面](./problem.md)。
 
+## 数据集
+
+数据集可从 Kaggle 竞赛页面下载：[Plant Seedlings Classification](https://www.kaggle.com/competitions/plant-seedlings-classification/overview)。下载后请将数据解压至 `data/` 目录，确保包含以下结构：
+
+```
+data/
+├── train/
+│   ├── Black-grass/
+│   ├── Charlock/
+│   ├── Cleavers/
+│   ├── Common Chickweed/
+│   ├── Common wheat/
+│   ├── Fat Hen/
+│   ├── Loose Silky-bent/
+│   ├── Maize/
+│   ├── Scentless Mayweed/
+│   ├── Shepherds Purse/
+│   ├── Small-flowered Cranesbill/
+│   └── Sugar beet/
+├── test/
+└── sample_submission.csv
+```
+
 ## (一) 训练方法
 
 ### 1. 传统特征 + 经典模型
