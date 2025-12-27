@@ -32,112 +32,113 @@ data/
 ### 1. 传统特征 + 经典模型
 - **流程与原理**：将原始图像缩放到 256×256，提取 RGB 均值/方差、HSV 直方图、灰度直方图与 Laplacian/Sobel 纹理统计，使用 `StandardScaler` 归一化后喂入 SVM（RBF）或随机森林，实现经典机器学习基线。
 - **运行方式**：
-	```bash
-	python src/baseline_features.py \
-	    --data-root data \
-	    --model svm \
-	    --val-ratio 0.2 \
-	    --seed 42 \
-	    --output submissions/baseline.csv
-	```
+    ```bash
+    python src/baseline_features.py \
+        --data-root data \
+        --model svm \
+        --val-ratio 0.2 \
+        --seed 42 \
+        --remove-bg \
+        --output submissions/baseline.csv
+    ```
 
 ### 2. 自研轻量 CNN
 - **流程与原理**：`SmallCNN` 采用轻量 Stem + 多个残差块，配合 Mixup、Label Smoothing、Cosine 学习率与可选强增强，实现从零训练的高效 CNN。
 - **运行方式**：
-	```bash
-	python src/cnn_scratch.py \
-	    --data-root data \
-	    --epochs 40 \
-	    --batch-size 64 \
-	    --lr 3e-4 \
-	    --mixup-alpha 0.2 \
-	    --label-smoothing 0.1 \
-	    --strong-aug \
-	    --amp \
-	    --predict-test \
-	    --submission submissions/cnn.csv
-	```
+    ```bash
+    python src/cnn_scratch.py \
+        --data-root data \
+        --epochs 40 \
+        --batch-size 64 \
+        --lr 3e-4 \
+        --mixup-alpha 0.2 \
+        --label-smoothing 0.1 \
+        --strong-aug \
+        --amp \
+        --predict-test \
+        --submission submissions/cnn.csv
+    ```
 
 ### 3. 预训练卷积模型
 - **流程与原理**：基于 ImageNet 预训练的 ResNet / EfficientNet / ConvNeXt，先冻结骨干微调分类头，再解冻全网微调；可配合 AMP、强增强与 TTA 提升收敛速度与精度。
 - **运行方式**：
-	```bash
-	python src/transfer_ensemble.py \
-	    --mode train \
-	    --data-root data \
-	    --arch convnext_large \
-	    --image-size 384 \
-	    --epochs 12 \
-	    --freeze-epochs 2 \
-	    --batch-size 32 \
-	    --lr 2e-4 \
-	    --strong-aug \
-	    --warmup-epochs 2 \
-	    --grad-accum-steps 2 \
-	    --tta 4 \
-	    --amp \
-	    --output experiments/convnext_large_best.pth \
-	    --submission submissions/convnext_large.csv
-	```
+    ```bash
+    python src/transfer_ensemble.py \
+        --mode train \
+        --data-root data \
+        --arch convnext_large \
+        --image-size 384 \
+        --epochs 12 \
+        --freeze-epochs 2 \
+        --batch-size 32 \
+        --lr 2e-4 \
+        --strong-aug \
+        --warmup-epochs 2 \
+        --grad-accum-steps 2 \
+        --tta 4 \
+        --amp \
+        --output experiments/convnext_large_best.pth \
+        --submission submissions/convnext_large.csv
+    ```
 
 ### 4. ViT 预训练 + 微调
 - **流程与原理**：使用 `timm` 的 `vit_base_patch16_224.augreg_in21k` 或 `vit_large_patch16_224.augreg_in21k`，通过 Layer-wise LR Decay + Warmup + 强增强稳定微调；推理阶段结合 TTA。
 - **运行方式**：
-	```bash
-	python src/transfer_ensemble.py \
-	    --mode train \
-	    --data-root data \
-	    --arch vit_l_16 \
-	    --epochs 8 \
-	    --freeze-epochs 2 \
-	    --batch-size 32 \
-	    --lr 5e-5 \
-	    --layer-decay 0.75 \
-	    --strong-aug \
-	    --warmup-epochs 1 \
-	    --tta 4 \
-	    --amp \
-	    --output experiments/vit_l16_best.pth \
-	    --submission submissions/vit_l16.csv
-	```
+    ```bash
+    python src/transfer_ensemble.py \
+        --mode train \
+        --data-root data \
+        --arch vit_l_16 \
+        --epochs 8 \
+        --freeze-epochs 2 \
+        --batch-size 32 \
+        --lr 5e-5 \
+        --layer-decay 0.75 \
+        --strong-aug \
+        --warmup-epochs 1 \
+        --tta 4 \
+        --amp \
+        --output experiments/vit_l16_best.pth \
+        --submission submissions/vit_l16.csv
+    ```
 
 ### 5. CNN + ViT + 强增强 + 集成
 - **流程与原理**：同时训练自研 CNN（提供纹理和局部敏感特征）与 ConvNeXt/Vision Transformer（捕获全局上下文），全部使用强增强和 TTA；最终以加权投票融合多个提交文件，缓解单模型偏差。
 - **运行方式**：
-	```bash
-	# 训练自研 CNN 与 ViT，并生成提交
-	python src/cnn_scratch.py \
-	    --data-root data \
-	    --epochs 40 \
-	    --batch-size 64 \
-	    --lr 3e-4 \
-	    --mixup-alpha 0.2 \
-	    --label-smoothing 0.1 \
-	    --strong-aug \
-	    --amp \
-	    --predict-test \
-	    --submission submissions/cnn.csv
-	python src/transfer_ensemble.py \
-	    --mode train \
-	    --data-root data \
-	    --arch vit_b_16 \
-	    --epochs 40 \
-	    --freeze-epochs 5 \
-	    --batch-size 48 \
-	    --lr 1e-4 \
-	    --layer-decay 0.8 \
-	    --strong-aug \
-	    --tta 4 \
-	    --amp \
-	    --submission submissions/vit.csv
+    ```bash
+    # 训练自研 CNN 与 ViT，并生成提交
+    python src/cnn_scratch.py \
+        --data-root data \
+        --epochs 40 \
+        --batch-size 64 \
+        --lr 3e-4 \
+        --mixup-alpha 0.2 \
+        --label-smoothing 0.1 \
+        --strong-aug \
+        --amp \
+        --predict-test \
+        --submission submissions/cnn.csv
+    python src/transfer_ensemble.py \
+        --mode train \
+        --data-root data \
+        --arch vit_b_16 \
+        --epochs 40 \
+        --freeze-epochs 5 \
+        --batch-size 48 \
+        --lr 1e-4 \
+        --layer-decay 0.8 \
+        --strong-aug \
+        --tta 4 \
+        --amp \
+        --submission submissions/vit.csv
 
-	# 加权集成提交结果
-	python src/transfer_ensemble.py --mode ensemble \
-	    --data-root data \
-	    --ensemble-csvs submissions/cnn.csv submissions/vit.csv submissions/convnext_large.csv \
-	    --ensemble-weights 1.0 1.2 1.0 \
-	    --ensemble-output submissions/ensemble.csv
-	```
+    # 加权集成提交结果
+    python src/transfer_ensemble.py --mode ensemble \
+        --data-root data \
+        --ensemble-csvs submissions/cnn.csv submissions/vit.csv submissions/convnext_large.csv \
+        --ensemble-weights 1.0 1.2 1.0 \
+        --ensemble-output submissions/ensemble.csv
+    ```
 
 ## (二) 脚本信息
 
@@ -151,6 +152,7 @@ data/
 | `--output` | `submissions/baseline.csv` | 预测输出 CSV 路径 |
 | `--sample-csv` | `data/sample_submission.csv` | Kaggle 官方示例，用于保持文件顺序 |
 | `--skip-train` | `False` | 仅生成特征矩阵，跳过训练与推理 |
+| `--remove-bg` | `False` | 是否移除背景 |
 
 ### `src/cnn_scratch.py`
 | 参数 | 默认值 | 说明 |

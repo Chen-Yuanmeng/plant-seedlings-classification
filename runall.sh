@@ -11,6 +11,7 @@ $PYTHON src/baseline_features.py \
     --model svm \
     --val-ratio 0.2 \
     --seed 42 \
+    --remove-bg \
     --output submissions/baseline.csv \
     >> $OUTPUT 2>&1
 
