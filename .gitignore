@@ -1,6 +1,6 @@
 # Ignored files
 data
-experiments
+experiments*
 submissions*
 
 
