@@ -16,6 +16,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from tqdm.auto import tqdm
 
+try:
+    from .background import MaskResult, remove_background
+except ImportError:  # pragma: no cover - fallback for script entry
+    from background import MaskResult, remove_background
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="植物幼苗传统特征分类基线")
@@ -26,7 +31,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=str, default="submissions/baseline.csv", help="Kaggle 提交文件路径")
     parser.add_argument("--sample-csv", type=str, default="data/sample_submission.csv", help="示例提交文件用于确定顺序")
     parser.add_argument("--skip-train", action="store_true", help="仅生成特征不训练（调试用）")
-    parser.add_argument("--remove-bg", action="store_true", default=True, help="是否去除背景")
+    parser.add_argument("--remove-bg", action="store_true", help="是否去除背景")
+    parser.add_argument(
+        "--bg-min-ratio",
+        type=float,
+        default=0.05,
+        help="植物像素占比阈值，小于该值时跳过掩码",
+    )
     return parser.parse_args()
 
 
@@ -44,48 +55,7 @@ def list_test_images(test_dir: Path) -> List[Path]:
     return sorted(test_dir.glob("*.*"))
 
 
-def create_plant_mask(image: np.ndarray) -> np.ndarray:
-    """创建植物区域的掩码"""
-    # 转换为HSV颜色空间
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    
-    # 定义绿色范围（适用于大多数植物）
-    # 范围1: 标准绿色范围
-    lower_green1 = np.array([35, 40, 40])
-    upper_green1 = np.array([85, 255, 255])
-    
-    # 范围2: 扩展的绿色范围（包含黄绿色和蓝绿色）
-    lower_green2 = np.array([25, 40, 40])
-    upper_green2 = np.array([95, 255, 255])
-    
-    # 范围3: 处理深绿色/阴影中的绿色
-    lower_green3 = np.array([35, 20, 20])
-    upper_green3 = np.array([85, 255, 200])
-    
-    # 创建多个掩码并合并
-    mask1 = cv2.inRange(hsv, lower_green1, upper_green1)
-    mask2 = cv2.inRange(hsv, lower_green2, upper_green2)
-    mask3 = cv2.inRange(hsv, lower_green3, upper_green3)
-    
-    mask = cv2.bitwise_or(mask1, mask2)
-    mask = cv2.bitwise_or(mask, mask3)
-    
-    # 形态学操作改善掩码
-    kernel = np.ones((5, 5), np.uint8)
-    
-    # 闭运算填充小孔
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    
-    # 开运算去除小噪声
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    
-    # 膨胀操作确保覆盖整个植物边缘
-    mask = cv2.dilate(mask, kernel, iterations=1)
-    
-    return mask
-
-
-def extract_features_with_bg_removal(path: Path, verbose: bool = False) -> np.ndarray:
+def extract_features_with_bg_removal(path: Path, min_ratio: float = 0.05, verbose: bool = False) -> np.ndarray:
     """改进版：在植物区域上提取特征"""
     image = cv2.imread(str(path))
     if image is None:
@@ -93,25 +63,14 @@ def extract_features_with_bg_removal(path: Path, verbose: bool = False) -> np.nd
     
     # 调整大小
     image = cv2.resize(image, (256, 256))
-    
-    # 创建植物掩码
-    mask = create_plant_mask(image)
-    
-    # 计算植物区域占比
-    plant_pixels = np.sum(mask > 0)
-    total_pixels = 256 * 256
-    plant_ratio = plant_pixels / total_pixels
-    
-    # 判断是否使用掩码
-    if plant_ratio < 0.05:  # 植物区域太小，使用完整图像并发出警告
-        if verbose:
-            print(f"警告: {path.name} 植物区域过小 ({plant_ratio*100:.1f}%)，使用完整图像")
-        use_mask = False
-        plant_image = image
-    else:
-        use_mask = True
-        # 创建植物区域图像
-        plant_image = cv2.bitwise_and(image, image, mask=mask)
+
+    mask_result: MaskResult = remove_background(image, color_space="bgr", min_ratio=min_ratio)
+    plant_ratio = mask_result.ratio
+    plant_image = mask_result.image
+    mask = mask_result.mask
+    use_mask = mask_result.used_mask
+    if verbose and not use_mask:
+        print(f"警告: {path.name} 植物区域过小 ({plant_ratio*100:.1f}%)，使用完整图像")
     
     # 在植物区域上计算特征
     rgb = cv2.cvtColor(plant_image, cv2.COLOR_BGR2RGB)
@@ -211,16 +170,19 @@ def extract_features_original(path: Path) -> np.ndarray:
     return features.astype(np.float32)
 
 
-def extract_features(path: Path, remove_bg: bool = True) -> np.ndarray:
+def extract_features(path: Path, remove_bg: bool = True, bg_min_ratio: float = 0.05) -> np.ndarray:
     """特征提取函数，根据参数选择是否去除背景"""
     if remove_bg:
-        return extract_features_with_bg_removal(path)
+        return extract_features_with_bg_removal(path, min_ratio=bg_min_ratio)
     else:
         return extract_features_original(path)
 
 
-def build_feature_matrix(paths: Sequence[Path], remove_bg: bool = True) -> np.ndarray:
-    feats = [extract_features(p, remove_bg) for p in tqdm(paths, desc="提取特征", unit="img")]
+def build_feature_matrix(paths: Sequence[Path], remove_bg: bool = True, bg_min_ratio: float = 0.05) -> np.ndarray:
+    feats = [
+        extract_features(p, remove_bg, bg_min_ratio)
+        for p in tqdm(paths, desc="提取特征", unit="img")
+    ]
     return np.stack(feats, axis=0)
 
 
@@ -245,10 +207,9 @@ def visualize_mask_comparison(image_path: Path, save_path: Path = None):
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     # 创建掩码
-    mask = create_plant_mask(image)
-    
-    # 应用掩码
-    masked_image = cv2.bitwise_and(image_rgb, image_rgb, mask=mask)
+    mask_result = remove_background(image, color_space="bgr", min_ratio=0.05)
+    mask = mask_result.mask
+    masked_image = cv2.cvtColor(mask_result.image, cv2.COLOR_BGR2RGB)
     
     # 创建子图
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -268,7 +229,7 @@ def visualize_mask_comparison(image_path: Path, save_path: Path = None):
     axes[2].set_title('植物区域')
     axes[2].axis('off')
     
-    plant_ratio = np.sum(mask > 0) / (256 * 256)
+    plant_ratio = mask_result.ratio
     plt.suptitle(f'植物区域占比: {plant_ratio*100:.1f}%', fontsize=14)
     
     if save_path:
@@ -290,7 +251,7 @@ def main() -> None:
     
     # 调试：可视化一些样本的掩码效果
     if not args.skip_train:
-        debug_samples = 5
+        debug_samples = 0
         train_samples = list_train_images(train_dir)
         if len(train_samples) > 0:
             print(f"\n调试: 可视化前{debug_samples}个样本的掩码效果")
@@ -304,7 +265,7 @@ def main() -> None:
     train_paths, train_labels = zip(*train_samples)
     
     # 构建特征矩阵
-    X = build_feature_matrix(train_paths, remove_bg=args.remove_bg)
+    X = build_feature_matrix(train_paths, remove_bg=args.remove_bg, bg_min_ratio=args.bg_min_ratio)
     y = np.array(train_labels)
      
     # 打印特征维度
@@ -371,7 +332,7 @@ def main() -> None:
         return
 
     # 提取测试集特征
-    X_test = build_feature_matrix(test_paths, remove_bg=args.remove_bg)
+    X_test = build_feature_matrix(test_paths, remove_bg=args.remove_bg, bg_min_ratio=args.bg_min_ratio)
     X_test_scaled = full_scaler.transform(X_test)
     
     # 预测

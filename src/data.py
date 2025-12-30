@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import albumentations as A
+import cv2
 import numpy as np
 import pandas as pd
 import torch
@@ -17,6 +18,11 @@ from PIL import Image
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+
+try:
+    from .background import remove_background
+except ImportError:  # pragma: no cover - fallback for direct script execution
+    from background import remove_background
 
 
 @dataclass
@@ -34,6 +40,8 @@ class DataConfig:
     persistent_workers: bool = True
     prefetch_factor: int = 2
     strong_augment: bool = False
+    remove_bg: bool = False
+    bg_min_ratio: float = 0.05
 
 
 class AlbumentationsWrapper:
@@ -61,11 +69,15 @@ class PlantSeedlingsDataset(Dataset):
         class_to_idx: Dict[str, int],
         labels: Optional[Sequence[str]] = None,
         transform: Optional[Callable] = None,
+        remove_bg: bool = False,
+        bg_min_ratio: float = 0.05,
     ) -> None:
         self.image_paths = list(image_paths)
         self.class_to_idx = class_to_idx
         self.labels = list(labels) if labels is not None else None
         self.transform = transform
+        self.remove_bg = remove_bg
+        self.bg_min_ratio = bg_min_ratio
 
     def __len__(self) -> int:  # noqa: D401
         return len(self.image_paths)
@@ -73,6 +85,11 @@ class PlantSeedlingsDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         path = self.image_paths[idx]
         image = Image.open(path).convert("RGB")
+        if self.remove_bg:
+            image_np = np.array(image)
+            mask_result = remove_background(image_np, color_space="rgb", min_ratio=self.bg_min_ratio)
+            plant_rgb = cv2.cvtColor(mask_result.image, cv2.COLOR_BGR2RGB)
+            image = Image.fromarray(plant_rgb)
         label = -1
         if self.labels is not None:
             label = self.class_to_idx[self.labels[idx]]
@@ -188,12 +205,16 @@ def create_dataloaders(config: DataConfig) -> Tuple[DataLoader, DataLoader, Dict
         class_to_idx,
         train_labels,
         transform=train_transform,
+        remove_bg=config.remove_bg,
+        bg_min_ratio=config.bg_min_ratio,
     )
     val_ds = PlantSeedlingsDataset(
         val_images,
         class_to_idx,
         val_labels,
         transform=val_transform,
+        remove_bg=config.remove_bg,
+        bg_min_ratio=config.bg_min_ratio,
     )
 
     common_kwargs = {
@@ -228,6 +249,8 @@ def create_test_loader(
     pin_memory: bool = False,
     persistent_workers: bool = True,
     prefetch_factor: int = 2,
+    remove_bg: bool = False,
+    bg_min_ratio: float = 0.05,
 ) -> DataLoader:
     """构造测试集 dataloader。"""
 
@@ -238,6 +261,8 @@ def create_test_loader(
         class_to_idx,
         labels=None,
         transform=_eval_transform(image_size),
+        remove_bg=remove_bg,
+        bg_min_ratio=bg_min_ratio,
     )
     loader_kwargs = {
         "batch_size": batch_size,

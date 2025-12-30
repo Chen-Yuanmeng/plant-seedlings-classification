@@ -63,6 +63,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--layer-decay", type=float, default=1.0, help="ViT 层级学习率衰减系数 (<1 有效)")
     parser.add_argument("--warmup-epochs", type=int, default=0, help="学习率 warmup 轮数")
     parser.add_argument("--grad-accum-steps", type=int, default=1, help="梯度累积步数")
+    parser.add_argument("--remove-bg", action="store_true", help="在进入模型前使用掩码去除背景")
+    parser.add_argument(
+        "--bg-min-ratio",
+        type=float,
+        default=0.05,
+        help="植物像素比例阈值，小于该值时跳过掩码",
+    )
     return parser.parse_args()
 
 
@@ -204,6 +211,8 @@ def train_mode(args: argparse.Namespace) -> None:
         persistent_workers=args.num_workers > 0,
         prefetch_factor=4 if args.num_workers > 0 else 2,
         strong_augment=args.strong_aug,
+        remove_bg=args.remove_bg,
+        bg_min_ratio=args.bg_min_ratio,
     )
     train_loader, val_loader, class_to_idx = create_dataloaders(config)
     num_classes = len(class_to_idx)
@@ -335,6 +344,8 @@ def predict_test(
         pin_memory=pin_memory,
         persistent_workers=num_workers > 0,
         prefetch_factor=prefetch_factor,
+        remove_bg=args.remove_bg,
+        bg_min_ratio=args.bg_min_ratio,
     )
     idx_to_class = {idx: cls for cls, idx in class_to_idx.items()}
     preds: List[str] = []

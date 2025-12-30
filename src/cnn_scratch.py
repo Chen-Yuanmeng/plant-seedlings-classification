@@ -41,6 +41,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--predict-test", action="store_true", help="训练结束后对测试集推理并生成 CSV")
     parser.add_argument("--submission", type=str, default="submissions/cnn.csv", help="推理输出文件")
     parser.add_argument("--strong-aug", action="store_true", help="启用更强数据增强 (Albumentations)")
+    parser.add_argument("--remove-bg", action="store_true", help="在送入模型前尝试移除图像背景")
+    parser.add_argument(
+        "--bg-min-ratio",
+        type=float,
+        default=0.05,
+        help="植物像素比例阈值，低于该值时跳过掩码",
+    )
     return parser.parse_args()
 
 
@@ -213,6 +220,8 @@ def predict_test(
     num_workers: int,
     pin_memory: bool,
     prefetch_factor: int,
+    remove_bg: bool,
+    bg_min_ratio: float,
 ) -> None:
     idx_to_class = {idx: cls for cls, idx in class_to_idx.items()}
     test_loader = create_test_loader(
@@ -224,6 +233,8 @@ def predict_test(
         pin_memory=pin_memory,
         persistent_workers=num_workers > 0,
         prefetch_factor=prefetch_factor,
+        remove_bg=remove_bg,
+        bg_min_ratio=bg_min_ratio,
     )
     model.eval()
     preds = []
@@ -257,6 +268,8 @@ def main() -> None:
         persistent_workers=args.num_workers > 0,
         prefetch_factor=4 if args.num_workers > 0 else 2,
         strong_augment=args.strong_aug,
+        remove_bg=args.remove_bg,
+        bg_min_ratio=args.bg_min_ratio,
     )
     train_loader, val_loader, class_to_idx = create_dataloaders(config)
     num_classes = len(class_to_idx)
@@ -313,6 +326,8 @@ def main() -> None:
             num_workers=args.num_workers,
             pin_memory=config.pin_memory,
             prefetch_factor=config.prefetch_factor,
+            remove_bg=config.remove_bg,
+            bg_min_ratio=config.bg_min_ratio,
         )
         print(f"测试集预测已保存到 {args.submission}")
 
