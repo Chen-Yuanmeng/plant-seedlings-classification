@@ -1,9 +1,5 @@
-OUTPUT=output.log
 PYTHON=./.venv/Scripts/python
 
-echo "所有输出均保存到 $OUTPUT 文件中"
-
-echo "模型 1: 传统特征 经典模型 (Baseline features)" > $OUTPUT
 echo "模型 1: 传统特征 经典模型 (Baseline features)"
 
 $PYTHON src/baseline_features.py \
@@ -12,14 +8,11 @@ $PYTHON src/baseline_features.py \
     --val-ratio 0.2 \
     --seed 42 \
     --remove-bg \
-    --output submissions/baseline.csv \
-    >> $OUTPUT 2>&1
+    --output submissions/baseline.csv
 
-echo "模型 1 完成" >> $OUTPUT
 echo "模型 1 完成"
-echo "===============================================" >> $OUTPUT
+echo "==============================================="
 
-echo "模型 2: 轻量 CNN" >> $OUTPUT
 echo "模型 2: 轻量 CNN"
 
 $PYTHON src/cnn_scratch.py \
@@ -33,13 +26,11 @@ $PYTHON src/cnn_scratch.py \
     --amp \
     --predict-test \
     --submission submissions/cnn.csv \
-    >> $OUTPUT 2>&1
+    2>&1
 
-echo "模型 2 完成" >> $OUTPUT
 echo "模型 2 完成"
-echo "===============================================" >> $OUTPUT
+echo "==============================================="
 
-echo "模型 3: 预训练卷积模型" >> $OUTPUT
 echo "模型 3: 预训练卷积模型"
 
 $PYTHON src/transfer_ensemble.py \
@@ -58,14 +49,12 @@ $PYTHON src/transfer_ensemble.py \
     --amp \
     --output experiments/convnext_large_best.pth \
     --submission submissions/convnext_large.csv \
-    >> $OUTPUT 2>&1
+    2>&1
 
 
-echo "模型 3 完成" >> $OUTPUT
 echo "模型 3 完成"
-echo "===============================================" >> $OUTPUT
+echo "==============================================="
 
-echo "模型 4: 预训练视觉 Transformer 模型 (ViT)" >> $OUTPUT
 echo "模型 4: 预训练视觉 Transformer 模型 (ViT)"
 
 $PYTHON src/transfer_ensemble.py \
@@ -83,13 +72,11 @@ $PYTHON src/transfer_ensemble.py \
     --amp \
     --output experiments/vit_l16_best.pth \
     --submission submissions/vit_l16.csv \
-    >> $OUTPUT 2>&1
+    2>&1
 
-echo "模型 4 完成" >> $OUTPUT
 echo "模型 4 完成"
-echo "===============================================" >> $OUTPUT
+echo "==============================================="
 
-echo "模型 5: CNN + ViT + 强增强 + 集成" >> $OUTPUT
 echo "模型 5: CNN + ViT + 强增强 + 集成"
 
 $PYTHON src/transfer_ensemble.py --mode ensemble \
@@ -97,12 +84,10 @@ $PYTHON src/transfer_ensemble.py --mode ensemble \
     --ensemble-csvs submissions/cnn.csv submissions/vit_l16.csv submissions/convnext_large.csv \
     --ensemble-weights 1.0 1.2 1.0 \
     --ensemble-output submissions/ensemble.csv \
-    >> $OUTPUT 2>&1
+    2>&1
 
-echo "模型 5 完成" >> $OUTPUT
 echo "模型 5 完成"
-echo "===============================================" >> $OUTPUT
-echo "全部实验完成" >> $OUTPUT
+echo "==============================================="
+echo "全部实验完成"
 
-echo "所有模型运行完成，结果已保存到 $OUTPUT"
 
