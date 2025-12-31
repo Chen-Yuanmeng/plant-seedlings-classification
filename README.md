@@ -27,6 +27,8 @@ data/
 └── sample_submission.csv
 ```
 
+> **背景去除（可选）**：所有训练脚本与演示入口都支持 `--remove-bg`（默认关闭）以及阈值 `--bg-min-ratio 0.05`。开启后会在进入特征提取/模型前先通过色彩掩码抑制土壤背景，使 Baseline 与深度模型共享同一预处理流程。
+
 ## (一) 训练方法
 
 ### 1. 传统特征 + 经典模型
@@ -153,6 +155,7 @@ data/
 | `--sample-csv` | `data/sample_submission.csv` | Kaggle 官方示例，用于保持文件顺序 |
 | `--skip-train` | `False` | 仅生成特征矩阵，跳过训练与推理 |
 | `--remove-bg` | `False` | 是否移除背景 |
+| `--bg-min-ratio` | `0.05` | 植物像素占比阈值，低于该值不使用掩码 |
 
 ### `src/cnn_scratch.py`
 | 参数 | 默认值 | 说明 |
@@ -173,6 +176,8 @@ data/
 | `--predict-test` | `False` | 训练后对测试集推理并生成 CSV |
 | `--submission` | `submissions/cnn.csv` | 推理输出文件 |
 | `--strong-aug` | `False` | 启用 Albumentations 强增强 |
+| `--remove-bg` | `False` | 训练/推理阶段移除背景 |
+| `--bg-min-ratio` | `0.05` | 背景去除的植物像素阈值 |
 
 ### `src/transfer_ensemble.py`
 | 参数 | 默认值 | 说明 |
@@ -201,3 +206,45 @@ data/
 | `--layer-decay` | `1.0` | ViT 层级学习率衰减（<1 时生效） |
 | `--warmup-epochs` | `0` | 学习率 warmup 轮数 |
 | `--grad-accum-steps` | `1` | 梯度累积步数，用于大批次模拟 |
+| `--remove-bg` | `False` | 训练/TTA 前对输入应用背景去除 |
+| `--bg-min-ratio` | `0.05` | 背景掩码阈值，越大越保守 |
+
+### `src/predict_single.py`
+
+使用已经训练好的模型对单张图像进行预测，支持传统特征模型与深度学习模型。
+
+```bash
+# Baseline SVM features (defaults to experiments/baseline_svm.joblib)
+python src/predict_single.py --image data/test/xxx.png --model-type baseline
+
+# Small CNN with AMP-style TTA
+python src/predict_single.py --image data/test/xxx.png --model-type cnn \
+    --checkpoint experiments/cnn_scratch_best.pth --tta 4 --image-size 224
+
+# ConvNeXt-L checkpoint at 384px
+python src/predict_single.py --image data/test/xxx.png --model-type pretrained_cnn \
+    --checkpoint experiments/convnext_large_best.pth --image-size 384 --tta 4
+
+# Weighted ensemble of CNN + ConvNeXt + ViT
+python src/predict_single.py --image data/test/xxx.png --model-type ensemble \
+    --ensemble-types cnn pretrained_cnn vit \
+    --ensemble-checkpoints experiments/cnn_scratch_best.pth \
+                           experiments/convnext_large_best.pth \
+                           experiments/vit_l16_best.pth \
+    --ensemble-weights 1.0 1.2 1.0 --tta 4 --image-size 384
+```
+
+## (三) Web 演示
+
+为了方便产品/业务侧快速体验单张样本推理，可通过 Gradio WebUI 随机抽取 `data/test` 中的图像，并同时查看 Baseline、自研轻量 CNN、预训练卷积模型、ViT 以及加权 Ensemble 的预测结果。所有 demo 代码位于 `demo/` 目录，旧版 `run_demo.py`、`run_demo.sh`、`runall.sh` 均已弃用。
+
+```bash
+python demo/webui.py \
+    --device cuda:0 \
+    --port 7860 \
+    --share           # 仅在需要公网访问时添加
+```
+
+- 默认会自动检测 `data/test`，若需测试其他目录，可通过 `--test-root path/to/images` 指定。
+- `--device` 可强制使用 `cpu` 或 `cuda:N`，否则脚本会自动检测可用 GPU。
+- 点击界面中的 **再抽一张图片** 按钮可重新抽样测试图并刷新五个模型的预测与置信度。
