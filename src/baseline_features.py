@@ -9,6 +9,7 @@ from typing import Iterable, List, Sequence, Tuple
 import cv2
 import numpy as np
 import pandas as pd
+from joblib import dump
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
@@ -37,6 +38,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.05,
         help="植物像素占比阈值，小于该值时跳过掩码",
+    )
+    parser.add_argument(
+        "--model-output",
+        type=str,
+        default=None,
+        help="保存训练好的模型（含标准化器）的路径，默认保存在 experiments/ 目录下",
     )
     return parser.parse_args()
 
@@ -324,6 +331,27 @@ def main() -> None:
     final_model = build_model(args.model, args.seed)
     final_model.fit(X_full, y)
     print(f"\n在整个训练集上的准确率: {final_model.score(X_full, y):.4f}")
+
+    # 保存模型与标准化器，便于后续复现
+    default_model_path = Path("experiments") / f"baseline_{args.model}.joblib"
+    model_output_path = Path(args.model_output) if args.model_output else default_model_path
+    model_output_path.parent.mkdir(parents=True, exist_ok=True)
+    dump(
+        {
+            "model": final_model,
+            "scaler": full_scaler,
+            "metadata": {
+                "model_type": args.model,
+                "remove_bg": args.remove_bg,
+                "bg_min_ratio": args.bg_min_ratio,
+                "feature_dim": X.shape[1],
+                "val_ratio": args.val_ratio,
+                "seed": args.seed,
+            },
+        },
+        model_output_path,
+    )
+    print(f"模型已保存到: {model_output_path}")
 
     # 处理测试集
     test_paths = list_test_images(test_dir)
