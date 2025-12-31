@@ -18,9 +18,9 @@ echo "模型 2: 轻量 CNN"
 $PYTHON src/cnn_scratch.py \
     --data-root data \
     --epochs 40 \
-    --batch-size 64 \
-    --lr 3e-4 \
-    --mixup-alpha 0.2 \
+    --batch-size 40 \
+    --lr 0.0003 \
+    --mixup-alpha 0 \
     --label-smoothing 0.1 \
     --strong-aug \
     --amp \
@@ -40,8 +40,9 @@ $PYTHON src/transfer_ensemble.py \
     --image-size 384 \
     --epochs 12 \
     --freeze-epochs 2 \
-    --batch-size 16 \
-    --lr 2e-4 \
+    --batch-size 12 \
+    --lr 0.00015 \
+    --weight-decay 0.0001 \
     --strong-aug \
     --warmup-epochs 2 \
     --grad-accum-steps 2 \
@@ -63,7 +64,7 @@ $PYTHON src/transfer_ensemble.py \
     --arch vit_l_16 \
     --epochs 8 \
     --freeze-epochs 2 \
-    --batch-size 32 \
+    --batch-size 24 \
     --lr 5e-5 \
     --layer-decay 0.75 \
     --strong-aug \
