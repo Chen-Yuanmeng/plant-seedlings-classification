@@ -27,8 +27,6 @@ data/
 └── sample_submission.csv
 ```
 
-> **背景去除（可选）**：所有训练脚本与演示入口都支持 `--remove-bg`（默认关闭）以及阈值 `--bg-min-ratio 0.05`。开启后会在进入特征提取/模型前先通过色彩掩码抑制土壤背景，使 Baseline 与深度模型共享同一预处理流程。
-
 ## (一) 训练方法
 
 ### 1. 传统特征 + 经典模型
@@ -248,3 +246,13 @@ python demo/webui.py \
 - 默认会自动检测 `data/test`，若需测试其他目录，可通过 `--test-root path/to/images` 指定。
 - `--device` 可强制使用 `cpu` 或 `cuda:N`，否则脚本会自动检测可用 GPU。
 - 点击界面中的 **再抽一张图片** 按钮可重新抽样测试图并刷新五个模型的预测与置信度。
+
+## (四) 调参与自动化脚本
+
+`tuning/` 目录提供了“粗调→细调”的两阶段流程，并且覆盖 CNN、ConvNeXt-L 微调方案以及 ViT-L/16：
+
+- 粗调（`tuning/<model>/coarse.py`）：基于 One-Factor-at-a-Time (OFAT) 策略，每次只变动一个超参，方便判断哪些维度最敏感。运行脚本会调用 `tuning/tune_models.py` 的统一封装，在 `reports/tuning_logs/<model>/coarse/` 下写入日志，并把每次执行的关键信息总结到 `tuning/<model>/coarse-result.txt`。
+- 细调（`tuning/<model>/fine.py`）：锁定粗调中表现稳定的超参后，对剩余敏感组合执行完整网格搜索，日志写到 `reports/tuning_logs/<model>/fine/`，执行摘要保存在 `tuning/<model>/fine-result.txt`。每个脚本会自动复用 `tune_models.py` 的标签生成/输出路径，确保实验、提交与日志按 `experiments/tuning/**`、`submissions/tuning/**` 的约定归档。
+- 汇总：运行 `python tuning/summarize_tuning_logs.py` 会遍历 `reports/tuning_logs/**/fine/` 中的日志，解析最佳验证分数，输出 CSV 到 `reports/tuning_results/` 以及逐日志的 `reports/tuning_results/per_log/**`，便于在表格工具里进行多模型对比。
+
+根据调参结果，选取最佳参数作为最终提交的配置。
