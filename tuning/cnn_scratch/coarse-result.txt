@@ -1,0 +1,40 @@
+lr -> 0.0002
+    Epoch 40/40 | Train 1.0272/0.4761 | Val 0.6954/0.9463
+lr -> 0.0003
+    Epoch 40/40 | Train 1.0318/0.4734 | Val 0.7010/0.9389
+lr -> 0.0004
+    Epoch 40/40 | Train 1.0622/0.4708 | Val 0.7191/0.9421
+lr -> 0.0005
+    Epoch 40/40 | Train 1.0665/0.4732 | Val 0.7207/0.9358
+
+batch-size -> 32
+    Epoch 40/40 | Train 1.1424/0.4947 | Val 0.7195/0.9389
+batch-size -> 40
+    Epoch 40/40 | Train 1.0318/0.4734 | Val 0.7010/0.9389
+batch-size -> 48
+    Epoch 40/40 | Train 1.0427/0.5599 | Val 0.7000/0.9453
+
+mixup-alpha -> 0.0
+    Epoch 40/40 | Train 0.7472/0.9300 | Val 0.7008/0.9516
+mixup-alpha -> 0.2
+    Epoch 40/40 | Train 1.0318/0.4734 | Val 0.7010/0.9389
+mixup-alpha -> 0.4
+    Epoch 40/40 | Train 1.2381/0.4800 | Val 0.7240/0.9368
+
+label-smoothing -> 0.05
+    Epoch 40/40 | Train 0.8676/0.4724 | Val 0.4702/0.9463
+label-smoothing -> 0.1
+    Epoch 40/40 | Train 1.0318/0.4734 | Val 0.7010/0.9389
+
+remove-bg -> True
+    Epoch 40/40 | Train 1.0030/0.4761 | Val 0.7135/0.9263
+remove-bg -> False
+    Epoch 40/40 | Train 1.0318/0.4734 | Val 0.7010/0.9389
+
+
+Results:
+lr: 0 to 2e-4, step 5e-5
+mixup-alpha: 0.0 to 0.2, step 0.05
+label-smoothing: 0.0 to 0.06, step 0.02
+remove-bg: False
+batch-size: 48

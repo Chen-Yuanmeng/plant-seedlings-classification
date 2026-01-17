@@ -1,0 +1,40 @@
+lr -> 0.0001
+    Epoch 12/12 | Train 0.3253/0.9918 | Val 0.3573/0.9863
+lr -> 0.00015
+    Epoch 12/12 | Train 0.3256/0.9918 | Val 0.3563/0.9832
+lr -> 0.0002
+    Epoch 12/12 | Train 0.3257/0.9908 | Val 0.3669/0.9779
+
+weight-decay -> 3e-05
+    Epoch 12/12 | Train 0.3269/0.9905 | Val 0.3620/0.9821
+weight-decay -> 7.5e-5
+    Epoch 12/12 | Train 0.3256/0.9918 | Val 0.3563/0.9832
+weight-decay -> 12e-5
+    Epoch 12/12 | Train 0.3256/0.9918 | Val 0.3572/0.9811
+
+batch-size -> 8
+    Epoch 12/12 | Train 0.3232/0.9913 | Val 0.3557/0.9832
+batch-size -> 12
+    Epoch 12/12 | Train 0.3256/0.9918 | Val 0.3563/0.9832
+batch-size -> 16
+    Epoch 12/12 | Train 0.3296/0.9897 | Val 0.3644/0.9789
+
+freeze-epochs -> 1
+    Epoch 12/12 | Train 0.3214/0.9929 | Val 0.3627/0.9821
+freeze-epochs -> 2
+    Epoch 12/12 | Train 0.3256/0.9918 | Val 0.3563/0.9832
+freeze-epochs -> 3
+    Epoch 12/12 | Train 0.3302/0.9884 | Val 0.3637/0.9811
+
+tta -> 2
+    Epoch 12/12 | Train 0.3248/0.9905 | Val 0.3580/0.9800
+tta -> 4
+    Epoch 12/12 | Train 0.3256/0.9918 | Val 0.3563/0.9832
+
+
+Results:
+lr: (4e-5 to 1.2e-4, step 1e-5)
+weight-decay: (3e-5 to 9e-5, step 3e-5)
+batch-size: 12
+freeze-epochs: 2
+tta: 4

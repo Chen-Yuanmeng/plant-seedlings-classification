@@ -20,9 +20,13 @@ def detect_project_root(start: Path) -> Path:
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = detect_project_root(SCRIPT_DIR)
 LOG_ROOT = PROJECT_ROOT / "reports" / "tuning_logs"
+FINE_SUBDIR = "fine"
 OUTPUT_DIR = PROJECT_ROOT / "reports" / "tuning_results"
+PER_LOG_DIR = OUTPUT_DIR / "per_log"
+FLOAT_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?"
 EPOCH_PATTERN = re.compile(
-    r"Epoch\s+(\d+)/(\d+)\s+\|\s+Train\s+([0-9.]+)/([0-9.]+)\s+\|\s+Val\s+([0-9.]+)/([0-9.]+)"
+    rf"Epoch\s+(?P<epoch>\d+)/(?P<total>\d+)\s+\|\s+Train\s+(?P<train_loss>{FLOAT_PATTERN})/(?P<train_acc>{FLOAT_PATTERN})\s+\|\s+Val\s+(?P<val_loss>{FLOAT_PATTERN})/(?P<val_acc>{FLOAT_PATTERN})",
+    re.IGNORECASE,
 )
 
 
@@ -58,47 +62,66 @@ def parse_params(path: Path) -> Tuple[str, Dict[str, object]]:
     return model, params
 
 
-def parse_log_metrics(path: Path) -> Optional[Dict[str, object]]:
+def parse_epoch_entries(path: Path) -> List[Dict[str, object]]:
     text = path.read_text(encoding="utf-8", errors="ignore")
-    best_acc = None
-    best_epoch = None
-    total_epochs = None
-    best_val_loss = None
+    entries: List[Dict[str, object]] = []
     for match in EPOCH_PATTERN.finditer(text):
-        epoch = int(match.group(1))
-        total_epochs = int(match.group(2))
-        val_loss = float(match.group(5))
-        val_acc = float(match.group(6))
-        if best_acc is None or val_acc > best_acc:
-            best_acc = val_acc
-            best_epoch = epoch
-            best_val_loss = val_loss
-    if best_acc is None:
-        return None
-    return {
-        "best_epoch": best_epoch,
-        "total_epochs": total_epochs,
-        "best_val_loss": best_val_loss,
-        "best_val_acc": best_acc,
-    }
+        entries.append(
+            {
+                "epoch": int(match.group("epoch")),
+                "total_epochs": int(match.group("total")),
+                "train_loss": float(match.group("train_loss")),
+                "train_acc": float(match.group("train_acc")),
+                "val_loss": float(match.group("val_loss")),
+                "val_acc": float(match.group("val_acc")),
+            }
+        )
+    return entries
+
+
+def write_epoch_csv(log_path: Path, entries: List[Dict[str, object]]) -> Path:
+    relative = log_path.relative_to(LOG_ROOT)
+    csv_path = (PER_LOG_DIR / relative).with_suffix(".csv")
+    ensure_parent(csv_path)
+    header = ["epoch", "total_epochs", "train_loss", "train_acc", "val_loss", "val_acc"]
+    with csv_path.open("w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=header)
+        writer.writeheader()
+        for entry in entries:
+            writer.writerow(entry)
+    return csv_path
 
 
 def collect_rows() -> List[Dict[str, object]]:
     rows: List[Dict[str, object]] = []
-    for log_path in sorted(LOG_ROOT.rglob("*.log")):
-        model, params = parse_params(log_path)
-        metrics = parse_log_metrics(log_path)
-        if metrics is None:
-            print(f"Skipping {log_path}: no epoch summaries found.")
+    if not LOG_ROOT.exists():
+        return rows
+    model_dirs = [path for path in LOG_ROOT.iterdir() if path.is_dir()]
+    for model_dir in sorted(model_dirs):
+        fine_dir = model_dir / FINE_SUBDIR
+        if not fine_dir.exists():
             continue
-        relative_path = log_path.relative_to(PROJECT_ROOT)
-        row = {
-            "model": model,
-            "log_path": str(relative_path).replace("\\", "/"),
-            "params": params,
-            **metrics,
-        }
-        rows.append(row)
+        for log_path in sorted(fine_dir.rglob("*.log")):
+            model, params = parse_params(log_path)
+            entries = parse_epoch_entries(log_path)
+            if not entries:
+                print(f"Skipping {log_path}: no epoch summaries found.")
+                continue
+            epoch_csv_path = write_epoch_csv(log_path, entries)
+            best_entry = max(entries, key=lambda item: (item["val_acc"], -item["val_loss"]))
+            relative_path = log_path.relative_to(PROJECT_ROOT)
+            epoch_csv_rel = epoch_csv_path.relative_to(PROJECT_ROOT)
+            row = {
+                "model": model,
+                "log_path": str(relative_path).replace("\\", "/"),
+                "epoch_csv": str(epoch_csv_rel).replace("\\", "/"),
+                "params": params,
+                "best_epoch": best_entry["epoch"],
+                "total_epochs": best_entry["total_epochs"],
+                "best_val_loss": best_entry["val_loss"],
+                "best_val_acc": best_entry["val_acc"],
+            }
+            rows.append(row)
     rows.sort(key=lambda item: (item["model"], -item["best_val_acc"]))
     return rows
 
@@ -114,6 +137,7 @@ def write_model_csv(model: str, rows: List[Dict[str, object]]) -> None:
     base_columns = [
         "model",
         "log_path",
+        "epoch_csv",
         "best_epoch",
         "total_epochs",
         "best_val_loss",
