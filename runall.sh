@@ -18,10 +18,10 @@ echo "模型 2: 轻量 CNN"
 $PYTHON src/cnn_scratch.py \
     --data-root data \
     --epochs 40 \
-    --batch-size 40 \
-    --lr 0.0003 \
-    --mixup-alpha 0 \
-    --label-smoothing 0.1 \
+    --batch-size 48 \
+    --lr 0.0001 \
+    --mixup-alpha 0.1 \
+    --label-smoothing 0.06 \
     --strong-aug \
     --amp \
     --predict-test \
@@ -41,8 +41,8 @@ $PYTHON src/transfer_ensemble.py \
     --epochs 12 \
     --freeze-epochs 2 \
     --batch-size 12 \
-    --lr 0.00015 \
-    --weight-decay 0.0001 \
+    --lr 0.00012 \
+    --weight-decay 0.00009 \
     --strong-aug \
     --warmup-epochs 2 \
     --grad-accum-steps 2 \
@@ -65,8 +65,9 @@ $PYTHON src/transfer_ensemble.py \
     --epochs 8 \
     --freeze-epochs 2 \
     --batch-size 24 \
-    --lr 5e-5 \
-    --layer-decay 0.75 \
+    --lr 6.5e-5 \
+    --layer-decay 0.8 \
+    --label-smoothing 0.05 \
     --strong-aug \
     --warmup-epochs 1 \
     --tta 4 \
@@ -83,7 +84,7 @@ echo "模型 5: CNN + ViT + 强增强 + 集成"
 $PYTHON src/transfer_ensemble.py --mode ensemble \
     --data-root data \
     --ensemble-csvs submissions/cnn.csv submissions/vit_l16.csv submissions/convnext_large.csv \
-    --ensemble-weights 1.0 1.2 1.0 \
+    --ensemble-weights 1.0 1.0 1.0 \
     --ensemble-output submissions/ensemble.csv \
     2>&1
 
